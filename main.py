@@ -8,6 +8,7 @@ import pyaudio
 import keyboard
 import numpy as np
 import wave
+import matplotlib.pyplot as plt
 
 CHUNK = 1024
 WIDTH = 2
@@ -26,10 +27,10 @@ def print_hi(name):
 
 def inverter(data):
     # Convert byte string into integer
-    wave = np.frombuffer(data, np.int16)
+    wave_data = np.frombuffer(data, np.int16)
 
     # invert integer using NumPy
-    invert_wave = np.invert(wave)
+    invert_wave = np.invert(wave_data)
 
     # Convert integer back into byte string
     inverted_sound = np.frombuffer(invert_wave, np.byte)
@@ -78,19 +79,28 @@ def live_anc():
 def file_anc():
     # Read in WAV file
     filename = input("Enter WAV file name: ")
-    (wavefile, stream) = read_file(filename)
+    (wavefile, stream, dt, w_len) = read_file(filename)
     print("Reading WAV file")
 
-    file = wavefile.readframes(CHUNK)
+    # read first byte CHUNK of wav file
+    file_data = wavefile.readframes(CHUNK)
+
+    # create matrix of wave data
+    input_array = []
+    inverted_array = []
 
     # read in byte from wave file
-    while file != b'':
+    while file_data != b'':
         try:
             # Play audio from file
-            stream.write(file)
+            stream.write(file_data)
+
+            # save data to array
+            input_data = np.frombuffer(file_data, np.int16)[0]
+            input_array.append(input_data)
 
             # Read next chuck of data
-            file = wavefile.readframes(CHUNK)
+            file_data = wavefile.readframes(CHUNK)
 
             if keyboard.is_pressed('x'):
                 print("You pressed x")
@@ -101,11 +111,16 @@ def file_anc():
         except Exception as e:
             print(str(e))
 
+
+
     # Close stream after finishing reading data
     stream.stop_stream()
     stream.close()
 
     print("End of WAV file")
+
+    # plot wave
+    plot_data(input_array, dt, w_len)
 
     # Terminate PyAudio object
     p.terminate()
@@ -129,7 +144,33 @@ def read_file(name):
                     rate=wf.getframerate(),
                     output=True)
 
-    return wf, stream
+    dt = 1/wf.getframerate()
+    w_len = (wf.getnframes()/wf.getframerate())
+    print("dt= (sec)", dt)
+    print("file length= (sec)", w_len)
+
+    return wf, stream, dt, w_len
+
+
+def plot_data(array, dt, length):
+    t = np.arange(0, length, (dt*CHUNK))
+
+    # plot data
+    plt.plot(t, array, color='c')
+
+    # x-axis label
+    plt.xlabel("Time (sec)")
+    # y-axis label
+    plt.ylabel("Wave Amplitude")
+
+    # graph title
+    plt.suptitle("Wave")
+
+    # include plot legend
+    plt.legend()
+
+    # show the plot
+    plt.show()
 
 
 if __name__ == '__main__':
