@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 import struct
 
 # CHUNK = 1024
-CHUNK = 2
+CHUNK = 1024
 WIDTH = 2
-CHANNELS = 2
+CHANNELS = 1
 RATE = 44100
 RECORD_SECONDS = 5
 
@@ -87,8 +87,6 @@ def file_anc():
     filename = input("Enter WAV file name: ")
     (wavefile, stream, dt, w_len) = read_file(filename)
     print("Reading WAV file")
-    print("wavefile channels", wavefile.getnchannels())
-    # plt.plot(wavefile)
 
     # read first byte CHUNK of wav file
     file_data = wavefile.readframes(CHUNK)
@@ -97,69 +95,64 @@ def file_anc():
     input_array = []
     noise_array = []
     input_plus_noise_array = []
-
     output_frames = []
     inverted_array = []
 
     # calculate time series
-    t = np.arange(0, w_len, (dt*CHUNK))
+    # t = np.arange(0, w_len, (dt*CHUNK))
 
     # read in byte from wave file
     while file_data != b'':
         try:
             # Play audio from file
             # stream.write(file_data)
-            # print("file_data=", file_data)
 
             # covert byte data to integer data
-            # input_data_int = np.frombuffer(file_data, np.int16)[0]
-            # input_data_int = np.frombuffer(file_data, np.int16)
-            # input_data_int = int.from_bytes(file_data, sys.byteorder)
             input_data_int = np.frombuffer(file_data, np.int16)
+            # print("input_data_int length = ", len(input_data_int))
 
-            # covert int data back to byte data
-            # input_data_byte = input_data_int.to_bytes(CHUNK, sys.byteorder)
-            # input_data_byte = np.frombuffer(input_data_int, np.byte)
-            # input_data_byte = struct.pack(input_data_int)
+            # print("input_data_int= ", input_data_int)
 
-            # # stream.write(input_data_byte)
+            # test = np.frombuffer(input_data_int, np.byte)
+            # stream.write(test)
 
-            # input_data = np.frombuffer(file_data, np.int16)
-            # print("input_data= ", input_data)
             # add integer data to array
-            input_array.append(input_data_int)
+            input_array.append(input_data_int[0])
+            # # input_array.append(input_data_int[0])
+            # keyboard.read_key()
+            # i = 0
+            # while i < len(input_data_int):
+            #     input_array.append(input_data_int[i])
+            #     i = i + 1
+                # if i == 1:
+                #     print("input_data_int[i]= ", input_data_int[i])
 
             # create noise
-            noise = np.random.randint(-1000, 1000)
-            # output noise data to array
-            noise_array.append(noise)
+            noise = np.random.randint(-1000, 1000, len(input_data_int))
+            # print("noise length = ", len(noise))
+            # noise = np.random.randint(-1000, 1000)
+            # #noise = np.random.randint(-1000, 1000, CHUNK)
+
             # print("noise= ", noise)
+
+            # output noise data to array
+            noise_array.append(noise[0])
 
             # add noise to input audio
             input_plus_noise = input_data_int + noise
+            # print("input_plus_noise= ", input_plus_noise)
 
             # output input and noise data to array
-            input_plus_noise_array.append(input_plus_noise)
+            input_plus_noise_array.append(input_plus_noise[0])
 
             # convert from integer back to bytes
             input_plus_noise_byte = np.frombuffer(input_plus_noise, np.byte)
-            stream.write(input_plus_noise_byte)
 
-            # # input_plus_noise_bytes = input_plus_noise.tobytes()
-            # input_plus_noise_bytes = np.frombuffer(input_plus_noise, np.byte)
-            # input_plus_noise_wave = np.frombuffer(input_plus_noise, np.byte)
+            # Play input audio with added noise
+            # stream.write(input_plus_noise_byte)
 
             # output byte data to array
             output_frames.append(input_plus_noise_byte)
-
-
-            # print("input_plus_noise= ", input_plus_noise)
-            # int_input_plus_noise = np.frombuffer(input_plus_noise, np.int16)[0]
-
-            # print("int_input_plus_noise= ", int_input_plus_noise)
-            # input_plus_noise_array.append(int_input_plus_noise)
-
-            # input_plus_noise_data = np.frombuffer(input_plus_noise, np.int16)[0]
 
             # Read next chuck of data
             file_data = wavefile.readframes(CHUNK)
@@ -180,13 +173,16 @@ def file_anc():
     print("End of WAV file")
 
     # plot input wave
-    # plot_data(input_array, input_plus_noise_array, noise_array, t)
+    plot_data(input_array, input_plus_noise_array, noise_array, w_len)
 
     # create output file
     wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-    wf.setnchannels(wavefile.getnchannels())
-    wf.setsampwidth(wavefile.getsampwidth())
-    wf.setframerate(wavefile.getframerate())
+    # # wf.setnchannels(wavefile.getnchannels())
+    # # wf.setsampwidth(wavefile.getsampwidth())
+    # # wf.setframerate(wavefile.getframerate())
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(WIDTH)
+    wf.setframerate(RATE)
     wf.writeframes(b''.join(output_frames))
     wf.close()
 
@@ -218,14 +214,26 @@ def read_file(name):
 
     dt = 1/wf.getframerate()
     w_len = (wf.getnframes()/wf.getframerate())
+    print("input WIDTH= ", wf.getsampwidth())
+    print("input CHANNELS= ", wf.getnchannels())
+    print("input = FRAMERATE", wf.getframerate())
     print("dt= (sec)", dt)
     print("file length= (sec)", w_len)
+    # keyboard.read_key()
 
     return wf, stream, dt, w_len
 
 
-def plot_data(array1, array2, array3, t):
-    # t = np.arange(0, length, (dt*CHUNK))
+def plot_data(array1, array2, array3, length):
+    print("dt= ", (1/RATE)*CHUNK)
+    print("length= ", length)
+    print("n= ", (length/((1/RATE)*CHUNK)))
+
+    t = np.arange(0, length, ((WIDTH/RATE)*CHUNK), dtype=object)
+    print("t length= ", len(t))
+    print("array1 length", len(array1))
+    keyboard.read_key()
+    # print("array1= ", array1)
 
     # plot data
     plt.plot(t, array1, color='r', label="clean")
@@ -240,7 +248,7 @@ def plot_data(array1, array2, array3, t):
     plt.ylabel("Wave Amplitude")
 
     # graph title
-    plt.suptitle("Wave")
+    plt.suptitle("Wave Analysis")
 
     # include plot legend
     plt.legend()
