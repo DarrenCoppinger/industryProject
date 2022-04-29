@@ -440,6 +440,7 @@ def fftnoise(f):
     return np.fft.ifft(f).real
 
 
+# from https://stackoverflow.com/questions/33933842/how-to-generate-noise-in-frequency-range-with-numpy
 def band_limited_noise(min_freq, max_freq, samples=1024, samplerate=1):
     freqs = np.abs(np.fft.fftfreq(samples, 1 / samplerate))
     f = np.zeros(samples)
@@ -558,36 +559,75 @@ def plot_data(array1, array2, array3, length):
 
 
 def add_noise(f, t):
-    noise = 2.5 * np.random.randn()
-    f_noise = f + noise
+    # read in audio file
+    (wavefile, stream, dt, w_len) = read_file()
+
+    # noise = 2.5 * np.random.randn()
+    # read in noise file
+    (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file()
+    print("Reading WAV file")
+    f_noise = f + noise_wavefile
     print("f_noise= ", f_noise)
     f_return = np.frombuffer(f_noise, np.int16)[0]
     print("f_return= ", f_return)
     return f_return
 
-
 if __name__ == '__main__':
     print('#' * 80)
     print("Select programme mode:")
-    print("1: Live Active Noise Cancellation")
-    print("2: WAV File Active Noise Cancelling")
-    print("3: Play WAV File ")
-    print("5: Record audio .wav File ")
-    # mode = input("Enter mode number: ")
-    mode = '3'
-    if mode == '1':
-        print("1: Live Active Noise Cancellation")
-        live_anc()
-    elif mode == '2':
-        print("2: WAV File Noise Cancelling")
-        file_anc()
-    elif mode == '3':
-        print("2: FFT")
-        fft_filter()
-    elif mode == '4':
-        print("4: ")
-    elif mode == '5':
-        print("5: Record")
-        record()
+    while True:
+        print("1: Play .wav audio file ")
+        print("2: Record .wav audio file ")
+        print("3: Add noise to .wav File ")
+        print("4: Apply Noise Cancelling to .wav audio file")
+        print("5: Live Active Noise Cancellation")
+        print("0: Exit Program")
+
+        mode = input("Enter mode number: ")
+        # mode = '3'
+        if mode == '1':
+            print("1: Play .wav audio file ")
+
+        elif mode == '2':
+            print("2: Record .wav audio file ")
+            record()
+        elif mode == '3':
+            print("3: Add noise to .wav File ")
+            print("Select the kind of noise to add (a or b): ")
+            print("a: Add pre-recorded noise to file")
+            print("b: Add noise with a specific frequency range")
+            choice = input("Enter mode number: ")
+            while True:
+                if choice == 'a':
+                    print("a")
+                    add_noise()
+                    break
+                elif choice == 'b':
+                    print("b")
+                    min_freq = input("Enter min frequency in range: ")
+                    max_freq = input("Enter max frequency in range: ")
+                    band_limited_noise(min_freq, max_freq, samples=CHUNK, samplerate=1)
+                    break
+                else:
+                    print("Select the kind of noise to add (a or b): ")
+                    print("a: Add pre-recorded noise to file")
+                    print("b: Add noise with a specific frequency range")
+                    print("please choose option a or b")
+        elif mode == '4':
+            print("4: Apply Noise Cancelling to .wav audio file")
+            while True:
+                print("a: use invert function")
+                print("b: use FFT function")
+                print("c: use noisereduce function")
+        elif mode == '5':
+            print("5: Live Active Noise Cancellation")
+            live_anc()
+        elif mode == '0':
+            print("0: Exiting program")
+            # Exit programme
+            sys.exit()
+        else:
+            print("Please choose an option from the list")
+
 
     print('#' * 80)
