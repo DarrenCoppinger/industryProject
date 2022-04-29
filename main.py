@@ -10,6 +10,8 @@ import numpy as np
 import wave
 import matplotlib.pyplot as plt
 
+from scipy.io import wavfile
+
 CHUNK = 1024
 # CHUNK = 1
 WIDTH = 2
@@ -75,8 +77,8 @@ def live_anc():
 
 def file_anc():
     # Read in WAV file
-
-    (wavefile, stream, dt, w_len) = read_file()
+    name = input("Enter .wav file name: ")
+    (wavefile, stream, dt, w_len) = read_file(name)
     print("Reading WAV file")
 
     # read first byte CHUNK of wav file
@@ -190,7 +192,8 @@ def file_anc():
 def fft_filter():
     print("fft")
     # Read in WAV file
-    (wavefile, stream, dt, w_len) = read_file()
+    fft_name = input("Enter .wav file to be filtered: ")
+    (wavefile, stream, dt, w_len) = read_file(fft_name)
     print("Reading WAV file")
 
     new_CHUNK = 1
@@ -449,17 +452,17 @@ def band_limited_noise(min_freq, max_freq, samples=1024, samplerate=1):
 
 
 def record():
-    CHUNK_RECORD = 1024
+    # CHUNK_RECORD = 1024
     print("Record FORMAT =", FORMAT)
     print("Record CHANNELS =", CHANNELS)
     print("Record RATE =", RATE)
-    print("Record CHUNK_RECORD =", CHUNK_RECORD)
+    print("Record CHUNK_RECORD =", CHUNK)
 
     stream = p.open(format=FORMAT,
                     channels=CHANNELS,
                     rate=RATE,
                     input=True,
-                    frames_per_buffer=CHUNK_RECORD)
+                    frames_per_buffer=CHUNK)
 
     print("* start audio recording")
     print("stop recording by pressing x")
@@ -497,11 +500,11 @@ def record():
     p.terminate()
 
 
-def read_file():
+def read_file(name):
     # name = input("Enter WAV file name: ")
     try:
-        # wf = wave.open(name, 'r')
-        wf = wave.open('darren.wav', 'r')
+        wf = wave.open(name, 'r')
+        # wf = wave.open('darren.wav', 'r')
     except wave.Error:
         print("You must input a WAV audio file")
         sys.exit()
@@ -521,7 +524,6 @@ def read_file():
     print("input = FRAMERATE", wf.getframerate())
     print("dt= (sec)", dt)
     print("file length= (sec)", w_len)
-    # keyboard.read_key()
 
     return wf, stream, dt, w_len
 
@@ -558,19 +560,66 @@ def plot_data(array1, array2, array3, length):
     plt.show()
 
 
-def add_noise(f, t):
+def add_noise():
+    noisy_frames = []
+
     # read in audio file
-    (wavefile, stream, dt, w_len) = read_file()
+    orig_audio_name = input("Enter the name of the original audio .wav file: ")
+    (wavefile, stream, dt, w_len) = read_file(orig_audio_name)
 
     # noise = 2.5 * np.random.randn()
     # read in noise file
-    (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file()
+    noise_name = input("Enter the name of the noise audio .wav file: ")
+    (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
     print("Reading WAV file")
-    f_noise = f + noise_wavefile
-    print("f_noise= ", f_noise)
-    f_return = np.frombuffer(f_noise, np.int16)[0]
-    print("f_return= ", f_return)
-    return f_return
+    noisy_wavefile = wavefile + noise_wavefile
+
+    data = wavefile.readframes(CHUNK)
+    noisy_data = noisy_wavefile.readframes(CHUNK)
+
+    while data != b'':
+        data_int = np.frombuffer(data, np.int16)
+        noisy_data_int = np.frombuffer(noisy_data, np.int16)
+        new_data = data_int + noisy_data_int
+        noisy_frames.append(new_data)
+        data = wavefile.readframes(CHUNK)
+
+
+    # f_return = np.frombuffer(f_noise, np.int16)[0]
+    # print("f_return= ", f_return)
+    # return f_return
+    # Output new audio to a file
+
+    output_filename = input("Enter new noisy file name:")
+    if output_filename[-4:] != ".wav":
+        output_filename = output_filename + ".wav"
+
+    wf = wave.open(output_filename, 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(noisy_frames))
+    wf.close()
+
+
+
+
+def play():
+    play_name = input("Enter the name of the audio .wav file to be played: ")
+    (wavefile, stream, dt, w_len) = read_file(play_name)
+
+    data = wavefile.readframes(CHUNK)
+    print("file reading")
+    while data != b'':
+        stream.write(data)
+        data = wavefile.readframes(CHUNK)
+
+    print("Close stream")
+    stream.stop_stream()
+    stream.close()
+
+    p.terminate()
+
 
 if __name__ == '__main__':
     print('#' * 80)
@@ -587,10 +636,11 @@ if __name__ == '__main__':
         # mode = '3'
         if mode == '1':
             print("1: Play .wav audio file ")
-
+            play()
         elif mode == '2':
             print("2: Record .wav audio file ")
             record()
+            print("Play finished")
         elif mode == '3':
             print("3: Add noise to .wav File ")
             print("Select the kind of noise to add (a or b): ")
