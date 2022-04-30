@@ -438,8 +438,8 @@ def fftnoise(f):
     Np = (len(f) - 1) // 2
     phases = np.random.rand(Np) * 2 * np.pi
     phases = np.cos(phases) + 1j * np.sin(phases)
-    f[1 : Np + 1] *= phases
-    f[-1 : -1 - Np : -1] = np.conj(f[1 : Np + 1])
+    f[1: Np + 1] *= phases
+    f[-1: -1 - Np: -1] = np.conj(f[1: Np + 1])
     return np.fft.ifft(f).real
 
 
@@ -447,7 +447,7 @@ def fftnoise(f):
 def band_limited_noise(min_freq, max_freq, samples=1024, samplerate=1):
     freqs = np.abs(np.fft.fftfreq(samples, 1 / samplerate))
     f = np.zeros(samples)
-    f[np.logical_and(freqs >= min_freq, freqs <= max_freq)] = 1
+    f[np.logical_and(freqs >= int(min_freq), freqs <= int(max_freq))] = 1
     return fftnoise(f)
 
 
@@ -501,6 +501,7 @@ def record():
 
 
 def read_file(name):
+    print("filename= ", name)
     # name = input("Enter WAV file name: ")
     try:
         wf = wave.open(name, 'r')
@@ -564,43 +565,143 @@ def add_noise():
     noisy_frames = []
 
     # read in audio file
-    orig_audio_name = input("Enter the name of the original audio .wav file: ")
+    # orig_audio_name = input("Enter the name of the original audio .wav file: ")
+    orig_audio_name = "bush_fish.wav"
     (wavefile, stream, dt, w_len) = read_file(orig_audio_name)
 
-    # noise = 2.5 * np.random.randn()
-    # read in noise file
-    noise_name = input("Enter the name of the noise audio .wav file: ")
-    (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
-    print("Reading WAV file")
-    noisy_wavefile = wavefile + noise_wavefile
+    data = wavefile.readframes(-1)
+    data_int = np.frombuffer(data, np.int16)
 
-    data = wavefile.readframes(CHUNK)
-    noisy_data = noisy_wavefile.readframes(CHUNK)
+    # data_int = data_int / 32768
+    while True:
+        print("Select the kind of noise to add (a or b): ")
+        print("1: Add pre-recorded noise to file")
+        print("2: Add noise with a specific frequency range to file")
+        choice_noise = input("Enter mode number: ")
+        if choice_noise == '1':
+            print("1")
+            # read in noise file
+            # noise_name = input("Enter the name of the noise audio .wav file: ")
+            noise_name = "cafe_short.wav"
+            (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
 
-    while data != b'':
-        data_int = np.frombuffer(data, np.int16)
-        noisy_data_int = np.frombuffer(noisy_data, np.int16)
-        new_data = data_int + noisy_data_int
-        noisy_frames.append(new_data)
-        data = wavefile.readframes(CHUNK)
+            noise_data = noise_wavefile.readframes(-1)
+            noise_data_int = np.frombuffer(noise_data, np.int16)
+            noise_data_int = noise_data_int[:wavefile.getnframes()]
 
+            # noise_data_int = noise_data_int / 32768
 
-    # f_return = np.frombuffer(f_noise, np.int16)[0]
-    # print("f_return= ", f_return)
-    # return f_return
-    # Output new audio to a file
+            break
+        elif choice_noise == '2':
+            print("2")
+            # min_freq = input("Enter min frequency in range: ")
+            # max_freq = input("Enter max frequency in range: ")
+            # samplerate=wavefile.getframerate()
+            input_min_freq = 400
+            input_max_freq = 450
+            noise_data = band_limited_noise(
+                min_freq=input_min_freq,
+                max_freq=input_max_freq,
+                samples=len(data_int),
+                samplerate=wavefile.getframerate()
+            ) * 10
+            # noise_data = np.ascontiguousarray(noise_data)
+            # noise_data = noise_data / max(noise_data)
+            noise_data_int = np.frombuffer(noise_data, np.int16)
+            # noise_data_int = noise_data_int / 32768
+            # noise_data_int = noise_data_int
+            noise_data_int = noise_data_int[:wavefile.getnframes()]
+            break
+        else:
+            print("Select the kind of noise to add (a or b): ")
+            print("a: Add pre-recorded noise to file")
+            print("b: Add noise with a specific frequency range")
+            print("please choose option 1 or 2")
+
+    print("data len", len(data_int))
+    print("noise_data_int len", len(noise_data_int))
+    print("data ", data_int[1])
+    print("noise_data_int", noise_data_int[1])
+
+    output_data = data_int + noise_data_int
+
+    output_data_byte = np.frombuffer(output_data, np.byte)
+    noise_data_byte = np.frombuffer(noise_data_int, np.byte)
+
+    # gets the frame rate
+    f_rate = wavefile.getframerate()
+
+    # Plot x-axis in seconds
+    # start number
+    # stop number (numberOfFrames / Framerate)
+    # num = number of steps
+    time = np.linspace(
+        0,
+        len(data_int) / f_rate,
+        num=len(data_int)
+    )
+
+    time_noise = np.linspace(
+        0,
+        len(noise_data_int) / f_rate,
+        num=len(noise_data_int)
+    )
+
+    # matplotlib create a new plot
+    # plt.figure(1)
+
+    # title of the plot
+    plt.title("Sound Wave Compare")
+
+    # label of x-axis
+    plt.xlabel("Time")
+
+    # label of y-axis
+    plt.ylabel("Amplitude")
+
+    # plt.plot(time, noise_data_int, color='red', label='noisy')
+    plt.plot(noise_data_int, color='red', label='noisy')
+
+    # original input plotting
+    # plt.plot(time, data_int, color='blue', label='input')
+    plt.plot(data_int, color='blue', label='input')
+
+    # plt.xlim(2.699, 2.7)
+
+    # include plot legend
+    plt.legend()
+
+    # shows the plot
+    # in new window
+    plt.show()
 
     output_filename = input("Enter new noisy file name:")
     if output_filename[-4:] != ".wav":
         output_filename = output_filename + ".wav"
 
+    print("output_data length = ", len(output_data))
+    print("output_data_byte length = ", len(output_data_byte))
+    print("original w_len = ", w_len)
+    print("fish frame rate = ", wavefile.getframerate())
+    print("RATE = ", RATE)
     wf = wave.open(output_filename, 'wb')
     wf.setnchannels(CHANNELS)
     wf.setsampwidth(p.get_sample_size(FORMAT))
     wf.setframerate(RATE)
-    wf.writeframes(b''.join(noisy_frames))
+    wf.writeframes(output_data_byte)
+    # wf.writeframes(noise_data_byte)
+    # wf.writeframes(b''.join(noise_data_int))
+    # wf.setframerate(len(output_data_byte)/w_len)
+    # wf.setnframes(len(output_data_byte))
+    # w_len = (wf.getnframes() / wf.getframerate())
+    # wf.setframerate(RATE)
+
+    # wf.writeframes(output_data_byte)
+
     wf.close()
 
+
+def noise_reduction():
 
 
 
@@ -643,26 +744,8 @@ if __name__ == '__main__':
             print("Play finished")
         elif mode == '3':
             print("3: Add noise to .wav File ")
-            print("Select the kind of noise to add (a or b): ")
-            print("a: Add pre-recorded noise to file")
-            print("b: Add noise with a specific frequency range")
-            choice = input("Enter mode number: ")
-            while True:
-                if choice == 'a':
-                    print("a")
-                    add_noise()
-                    break
-                elif choice == 'b':
-                    print("b")
-                    min_freq = input("Enter min frequency in range: ")
-                    max_freq = input("Enter max frequency in range: ")
-                    band_limited_noise(min_freq, max_freq, samples=CHUNK, samplerate=1)
-                    break
-                else:
-                    print("Select the kind of noise to add (a or b): ")
-                    print("a: Add pre-recorded noise to file")
-                    print("b: Add noise with a specific frequency range")
-                    print("please choose option a or b")
+            add_noise()
+
         elif mode == '4':
             print("4: Apply Noise Cancelling to .wav audio file")
             while True:
