@@ -1,16 +1,18 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
 import sys
 import pyaudio
 import keyboard
 import numpy as np
 import wave
 import matplotlib.pyplot as plt
-
+import noisereduce as nr
+import IPython
 from scipy.io import wavfile
+import librosa
+import scipy.signal
+
+import time
+from datetime import timedelta as td
+
 
 CHUNK = 1024
 # CHUNK = 1
@@ -582,7 +584,8 @@ def add_noise():
             print("1")
             # read in noise file
             # noise_name = input("Enter the name of the noise audio .wav file: ")
-            noise_name = "cafe_short.wav"
+            # noise_name = "cafe_short.wav"
+            noise_name = "ambience-cafe.wav"
             (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
 
             noise_data = noise_wavefile.readframes(-1)
@@ -641,12 +644,6 @@ def add_noise():
         num=len(data_int)
     )
 
-    time_noise = np.linspace(
-        0,
-        len(noise_data_int) / f_rate,
-        num=len(noise_data_int)
-    )
-
     # matplotlib create a new plot
     # plt.figure(1)
 
@@ -666,13 +663,11 @@ def add_noise():
     # plt.plot(time, data_int, color='blue', label='input')
     plt.plot(data_int, color='blue', label='input')
 
-    # plt.xlim(2.699, 2.7)
 
     # include plot legend
     plt.legend()
 
     # shows the plot
-    # in new window
     plt.show()
 
     output_filename = input("Enter new noisy file name:")
@@ -701,8 +696,46 @@ def add_noise():
     wf.close()
 
 
-def noise_reduction():
+def mult():
+    mult_frames = []
+    wavefile = wave.open("cafe_short.wav", 'r')
 
+    data = wavefile.readframes(CHUNK)
+
+    while data != b'':
+        mult_frames.append(data)
+        data = wavefile.readframes(CHUNK)
+
+    wavefile = wave.open("cafe_short.wav", 'r')
+
+    data = wavefile.readframes(CHUNK)
+
+    while data != b'':
+        mult_frames.append(data)
+        data = wavefile.readframes(CHUNK)
+
+    wavefile = wave.open("cafe_short.wav", 'r')
+
+    data = wavefile.readframes(CHUNK)
+
+    while data != b'':
+        mult_frames.append(data)
+        data = wavefile.readframes(CHUNK)
+
+    wf = wave.open("cafe_mult.wav", 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(mult_frames))
+    wf.close()
+
+
+def noise_reduction():
+    # load data
+    rate, data = wavfile.read("finaltest.wav")
+    # perform noise reduction
+    reduced_noise = nr.reduce_noise(y=data, sr=rate)
+    wavfile.write("mywav_reduced_noise.wav", rate, reduced_noise)
 
 
 def play():
@@ -748,13 +781,15 @@ if __name__ == '__main__':
 
         elif mode == '4':
             print("4: Apply Noise Cancelling to .wav audio file")
-            while True:
-                print("a: use invert function")
-                print("b: use FFT function")
-                print("c: use noisereduce function")
+            noise_reduction()
+            # while True:
+            #     print("a: use invert function")
+            #     print("b: use FFT function")
+            #     print("c: use noisereduce function")
         elif mode == '5':
             print("5: Live Active Noise Cancellation")
-            live_anc()
+            mult()
+            # live_anc()
         elif mode == '0':
             print("0: Exiting program")
             # Exit programme
