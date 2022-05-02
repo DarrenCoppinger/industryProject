@@ -18,13 +18,18 @@ FORMAT = pyaudio.paInt16
 # Create pyaudio object
 p = pyaudio.PyAudio()
 
-
 def inverter(data):
+    """
+    this function generates the inverse of the provided wave stream chunk
+    The NumPy libray function invert() is used to achieve this.
+    :param data: takes a array of  stream bytes
+    :return:
+    """
     # Convert byte string into integer
     wave_data = np.frombuffer(data, np.int16)
 
     # invert integer using NumPy
-    invert_wave = np.invert(wave_data)
+    invert_wave = (np.invert(wave_data) + 1)
 
     # Convert integer back into byte string
     inverted_sound = np.frombuffer(invert_wave, np.byte)
@@ -33,6 +38,13 @@ def inverter(data):
 
 
 def live_anc():
+    """
+    create a wire (input channelled directly to output) to return
+    the inverse of the sound detected by the device microphone
+
+    :return: nothing
+    """
+
     stream = p.open(format=p.get_format_from_width(WIDTH),
                     channels=CHANNELS,
                     rate=RATE,
@@ -69,32 +81,22 @@ def live_anc():
     stream.close()
 
     # create input wave file
-    print("ANC input")
-    wf_input = wave.open("ANC_input.wav", 'wb')
-    wf_input.setnchannels(CHANNELS)
-    wf_input.setsampwidth(WIDTH)
-    wf_input.setframerate(RATE)
-    wf_input.writeframes(b''.join(input_frames))
-    wf_input.close()
+    print("ANC input file output to ANC_input.wav")
+    output_file("ANC_input.wav", input_frames)
 
     wf_input = wave.open("ANC_input.wav", 'rb')
-
     anc_input = wf_input.readframes(-1)
     anc_input_data = np.frombuffer(anc_input, dtype="int16")
+    anc_input_data = anc_input_data/32768
 
     # create inverted wave file
-    print("ANC input")
-    wf_inverted = wave.open("ANC_inverted.wav", 'wb')
-    wf_inverted.setnchannels(CHANNELS)
-    wf_inverted.setsampwidth(WIDTH)
-    wf_inverted.setframerate(RATE)
-    wf_inverted.writeframes(b''.join(inverted_frames))
-    wf_inverted.close()
+    print("ANC inverted file output to ANC_inverted.wav ")
+    output_file("ANC_inverted.wav", inverted_frames)
 
     wf_inverted = wave.open("ANC_inverted.wav", 'rb')
-
     anc_inverted = wf_inverted.readframes(-1)
     anc_inverted_data = np.frombuffer(anc_inverted, dtype="int16")
+    anc_inverted_data = anc_inverted_data / 32768
 
     mix_data = anc_input_data + anc_inverted_data
 
@@ -113,7 +115,7 @@ def live_anc():
     plt.xlabel("Time")
 
     # label of y-axis
-    plt.ylabel("Amp")
+    plt.ylabel("Amplitude")
 
     #  plot
     plt.plot(time, anc_input_data, color="green", label="input")
@@ -130,185 +132,47 @@ def live_anc():
     plt.show()
 
 
-def file_anc():
-    # Read in WAV file
-    name = input("Enter .wav file name: ")
-    (wavefile, stream, dt, w_len) = read_file(name)
-    print("Reading WAV file")
-
-    # read first byte CHUNK of wav file
-    file_data = wavefile.readframes(CHUNK)
-
-    # create matrix of wave data
-    input_array = []
-    noise_array = []
-    input_plus_noise_array = []
-    output_frames = []
-    inverted_array = []
-
-    # read in byte from wave file
-    while file_data != b'':
-        try:
-            # Play audio from file
-            # stream.write(file_data)
-
-            # covert byte data to integer data
-            input_data_int = np.frombuffer(file_data, np.int16)
-
-            # add integer data to array
-            input_array.append(input_data_int[0])
-
-            # create noise
-            # Note on len(input_data_int). Last CHUNK might not be a full CHUNK.
-            noise = np.random.randint(-1000, 1000, len(input_data_int))
-
-            # output noise data to array
-            noise_array.append(noise[0])
-
-            # add noise to input audio
-            input_plus_noise = input_data_int + noise
-
-            # output input and noise data to array
-            input_plus_noise_array.append(input_plus_noise[0])
-
-            # convert from integer back to bytes
-            input_plus_noise_byte = np.frombuffer(input_plus_noise, np.byte)
-
-            # Play input audio with added noise
-            # stream.write(input_plus_noise_byte)
-
-            # output byte data to array
-            output_frames.append(input_plus_noise_byte)
-
-            # Read next chuck of data
-            file_data = wavefile.readframes(CHUNK)
-
-            if keyboard.is_pressed('x'):
-                print("You pressed x")
-                break
-        except (KeyboardInterrupt, SystemExit):
-            print('Exit File active noise cancelling')
-            break
-        except Exception as e:
-            print(str(e))
-
-    # Close stream after finishing reading data
-    stream.stop_stream()
-    stream.close()
-
-    print("End of WAV file")
-
-    # plot input wave
-    plot_data(input_array, input_plus_noise_array, noise_array, w_len)
-
-    # create output file
-    wf = wave.open("output.wav", 'wb')
+def output_file(name, array):
+    """
+    Output a wav file with recorded data
+    :param name: output filename
+    :param array: data to be output to wav file
+    :return:
+    """
+    wf = wave.open(name, 'wb')
     wf.setnchannels(CHANNELS)
     wf.setsampwidth(WIDTH)
     wf.setframerate(RATE)
-    wf.writeframes(b''.join(output_frames))
+    wf.writeframes(b''.join(array))
     wf.close()
-
-    # plot input plus noise wave
-    # plot_data(input_array, t, "noisy")
-
-    # Terminate PyAudio object
-    p.terminate()
-    # Exit programme
-    sys.exit()
 
 
 def fft_filter():
-    print("fft")
-    # Read in WAV file
-    fft_name = input("Enter .wav file to be filtered: ")
-    (wavefile, stream, dt, w_len) = read_file(fft_name)
-    print("Reading WAV file")
+    """
+    Apply Fast Fourier Transform analysis to
+    :return:
+    """
+    dt_f = 0.001
+    t_f = np.arange(0, 1, dt_f)
 
-    new_CHUNK = 1
-    # read first byte CHUNK of wav file
-    file_data = wavefile.readframes(new_CHUNK)
-
-    # create matrix of wave data
-    fft_input_array = []
-    fft_noise_array = []
-    fft_input_plus_noise_array = []
-    fft_output_frames = []
-    inverted_array = []
-
-    # read in byte from wave file
-    while file_data != b'':
+    print("Enter two frequency for the wave would you like to create: ")
+    # while True:
+    #     input_freq = input("Frequency: ")
+    #     f = np.sin(2 * np.pi * np.int(input_freq) * t_f)
+    #     print("Do you wanted to add another frequency to this wave?")
+    #     input_freq = input("If no enter -1:")
+    #     if(input_freq == -1):
+    #         break
+    while True:
         try:
-            # covert byte data to integer data
-            input_data_int = np.frombuffer(file_data, dtype=np.int16)
-
-            # add integer data to array
-            fft_input_array.append(input_data_int[0])
-
-            # create noise
-            # Note on len(input_data_int). Last CHUNK might not be a full CHUNK.
-            # noise = np.random.randint(-1000, 1000, len(input_data_int))
-            noise = 5000*np.random.randn(len(input_data_int))
-
-            # output noise data to array
-            fft_noise_array.append(noise[0])
-
-            # add noise to input audio
-            input_plus_noise = input_data_int + noise
-
-            # output input and noise data to array
-            fft_input_plus_noise_array.append(input_plus_noise[0])
-
-            # convert from integer back to bytes
-            input_plus_noise_byte = np.frombuffer(input_plus_noise, np.byte)
-
-            # output byte data to array
-            fft_output_frames.append(input_plus_noise_byte)
-
-            # Read next chuck of data
-            file_data = wavefile.readframes(new_CHUNK)
-
-            if keyboard.is_pressed('x'):
-                print("You pressed x")
-                break
-        except (KeyboardInterrupt, SystemExit):
-            print('Exit File active noise cancelling')
+            input_freq_1 = int(input("Frequency 1: "))
+            input_freq_2 = int(input("Frequency 2: "))
             break
-        except Exception as e:
-            print(str(e))
+        except ValueError:
+            print("please enter a valid number")
 
-    # Close stream after finishing reading data
-    stream.stop_stream()
-    stream.close()
-
-    print("End of WAV file")
-
-    # # plot input wave
-    t = np.arange(0, w_len, ((1 / RATE) * new_CHUNK))
-
-    n = len(fft_input_plus_noise_array)
-    fhat = np.fft.fft(fft_input_plus_noise_array, n)
-    PSD = fhat * np.conj(fhat) / n
-    freq = (1 / (dt * n)) * np.arange(n)
-    L = np.arange(1, np.floor(n / 2), dtype='int')
-
-    n_input = len(fft_input_array)
-    fhat_input = np.fft.fft(fft_input_array, n_input)
-    PSD_input = fhat * np.conj(fhat_input) / n_input
-    freq_input = (1 / (dt * n_input)) * np.arange(n_input)
-    L_input = np.arange(1, np.floor(n_input / 2), dtype='int')
-
-    # find frequencies with large powers
-    indices = PSD > 1
-    PSD_clean = PSD * indices
-    fhat = indices * fhat
-    # Inverse FFT for filtered signal
-    ffilt = np.fft.ifft(fhat)
-
-
-    dt_f = 0.001
-    t_f = np.arange(0, 1, dt_f)
-    f = np.sin(2*np.pi*50*t_f) + np.sin(2*np.pi*120*t_f)
+    f = np.sin(2 * np.pi * input_freq_1 * t_f) + np.sin(2*np.pi*input_freq_2*t_f)
+    # f = np.sin(2*np.pi*30*t_f) + np.sin(2*np.pi*140*t_f)
     f_clean = f
     f = f + 2.5*np.random.randn(len(t_f))
 
@@ -325,104 +189,49 @@ def fft_filter():
     # Inverse FFT for filtered signal
     ffilt_f = np.fft.ifft(fhat_f)
 
-    fig, axs = plt.subplots(4, 1)
-
-    plt.sca(axs[0])
-    plt.plot(t_f, f, color='k', label='noisy')
-    plt.plot(t_f, f_clean, color='c', label='clean')
+    plt.suptitle("Original v Noisy data")
+    plt.plot(t_f, f, color='red', label='noisy data')
+    plt.plot(t_f, f_clean, color='black', label='original data')
     plt.xlim(t_f[0], t_f[-1])
+    plt.ylim(10, -10)
+    plt.xlabel("time (sec)")
+    plt.ylabel("Amplitude")
     plt.legend()
-
-    plt.sca(axs[1])
-    plt.plot(t_f, ffilt_f, color='k', label="filtered")
-    plt.xlim(t_f[0], t_f[-1])
-    plt.legend()
-
-    plt.sca(axs[2])
-    plt.plot(freq_f[L_f], PSD_f[L_f], color='k', label='noisy')
-    plt.plot(freq_f[L_f], PSD_clean_f[L_f], color='c', label='filtered')
-    plt.xlim(freq_f[L_f[0]], freq_f[L_f[-1]])
-
-    plt.legend()
-
-    plt.sca(axs[3])
-    plt.plot(freq_f[L_f], PSD_clean_f[L_f], color='c', label='filtered')
-    plt.xlim(freq_f[L_f[0]], freq_f[L_f[-1]])
-    plt.legend()
-
     plt.show()
 
-    # create output file
-    print("FFT Output RATE= ", RATE)
-    wf_output = wave.open("FFT_OUTPUT.wav", 'wb')
-    wf_output.setnchannels(wavefile.getnchannels())
-    wf_output.setsampwidth(wavefile.getsampwidth())
-    wf_output.setframerate(wavefile.getframerate())
-    wf_output.writeframes(b''.join(fft_output_frames))
-    wf_output.close()
+    plt.suptitle("Original v Filtered data")
+    plt.plot(t_f, np.real(f_clean), color='red', label='original data')
+    plt.plot(t_f, np.real(ffilt_f), color='black', label="filtered data")
+    plt.xlim(t_f[0], t_f[-1])
+    plt.ylim(10, -10)
+    plt.xlabel("Time (sec)")
+    plt.ylabel("Amplitude")
+    plt.legend()
+    plt.show()
 
-    # Terminate PyAudio object
-    p.terminate()
-    # Exit programme
-    sys.exit()
-
-
-def fft_simple_filter():
-    print("fft_simple_filter")
-    # Read in WAV file
-
-    dt_f = 0.001
-    t_f = np.arange(0, 1, dt_f)
-    f = np.sin(2*np.pi*50*t_f) + np.sin(2*np.pi*120*t_f)
-    f_clean = f
-    f = f + 2.5*np.random.randn(len(t_f))
-
-    n_f = len(t_f)
-    fhat_f = np.fft.fft(f, n_f)
-    PSD_f = fhat_f * np.conj(fhat_f) / n_f
-    freq_f = (1 / (dt_f * n_f)) * np.arange(n_f)
-    L_f = np.arange(1, np.floor(n_f / 2), dtype='int')
-
-    # find frequencies with large powers
-    indices_f = PSD_f > 100
-    PSD_clean_f = PSD_f * indices_f
-    fhat_f = indices_f * fhat_f
-    # Inverse FFT for filtered signal
-    ffilt_f = np.fft.ifft(fhat_f)
-
-    fig, axs = plt.subplots(4, 1)
+    fig, axs = plt.subplots(2, 1)
+    plt.suptitle("FFT PSD Analysis")
 
     plt.sca(axs[0])
-    plt.plot(t_f, f, color='k', label='noisy')
-    plt.plot(t_f, f_clean, color='c', label='clean')
-    plt.xlim(t_f[0], t_f[-1])
+    plt.plot(np.real(freq_f[L_f]), np.real(PSD_f[L_f]), color='black', label='noisy data')
+    plt.xlim(freq_f[L_f[0]], freq_f[L_f[-1]])
+    plt.xlabel("Frequency Hz")
+    plt.ylabel("PSD")
     plt.legend()
 
     plt.sca(axs[1])
-    plt.plot(t_f, ffilt_f, color='k', label="filtered")
-    plt.xlim(t_f[0], t_f[-1])
-    plt.legend()
-
-    plt.sca(axs[2])
-    plt.plot(freq_f[L_f], PSD_f[L_f], color='k', label='noisy')
-    plt.plot(freq_f[L_f], PSD_clean_f[L_f], color='c', label='filtered')
-    # plt.plot(freq[L], PSD_clean[L], color='k', label='Filtered')
+    plt.plot(np.real(freq_f[L_f]), np.real(PSD_clean_f[L_f]), color='black', label='filtered data')
     plt.xlim(freq_f[L_f[0]], freq_f[L_f[-1]])
-    # plt.xlim(freq[L[0]], 1000)
-    # plt.ylim(0, 2)
-    plt.legend()
-
-    plt.sca(axs[3])
-    plt.plot(freq_f[L_f], PSD_clean_f[L_f], color='c', label='filtered')
-    plt.xlim(freq_f[L_f[0]], freq_f[L_f[-1]])
+    plt.xlabel("Frequency Hz")
+    plt.ylabel("PSD")
     plt.legend()
 
     plt.show()
 
     # Terminate PyAudio object
-    p.terminate()
+    # p.terminate()
     # Exit programme
-    sys.exit()
+    # sys.exit()
 
 
 # from https://stackoverflow.com/questions/33933842/how-to-generate-noise-in-frequency-range-with-numpy
@@ -554,7 +363,7 @@ def plot_data(array1, array2, array3, length):
 
 def add_noise():
     noisy_frames = []
-
+    output_data = []
     # read in audio file
     # orig_audio_name = input("Enter the name of the original audio .wav file: ")
     orig_audio_name = "bush_fish.wav"
@@ -563,48 +372,22 @@ def add_noise():
     data = wavefile.readframes(-1)
     data_int = np.frombuffer(data, np.int16)
 
-    while True:
-        print("Select the kind of noise to add (a or b): ")
-        print("1: Add pre-recorded noise to file")
-        print("2: Add noise with a specific frequency range to file")
-        choice_noise = input("Enter mode number: ")
-        if choice_noise == '1':
-            print("1")
-            # read in noise file
-            # noise_name = input("Enter the name of the noise audio .wav file: ")
-            noise_name = "cafe_mult.wav"
-            # noise_name = "ambience-cafe.wav"
-            (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
+    data_int = data_int
 
-            noise_data = noise_wavefile.readframes(-1)
-            noise_data_int = np.frombuffer(noise_data, np.int16)
-            noise_data_int = noise_data_int[:wavefile.getnframes()]
+    print("Add pre-recorded noise to file")
+    choice_noise = input("Enter mode number: ")
 
-            # noise_data_int = noise_data_int / 32768
+    # read in noise file
+    # noise_name = input("Enter the name of the noise audio .wav file: ")
+    noise_name = "cafe_mult.wav"
+    # noise_name = "ambience-cafe.wav"
+    (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
 
-            break
-        elif choice_noise == '2':
-            print("2")
-            # min_freq = input("Enter min frequency in range: ")
-            # max_freq = input("Enter max frequency in range: ")
-            input_min_freq = 400
-            input_max_freq = 450
-            noise_data = band_limited_noise(
-                min_freq=input_min_freq,
-                max_freq=input_max_freq,
-                samples=len(data_int),
-                samplerate=wavefile.getframerate()
-            ) * 10
+    noise_data = noise_wavefile.readframes(-1)
+    noise_data_int = np.frombuffer(noise_data, np.int16)
+    noise_data_int = noise_data_int[:wavefile.getnframes()]
 
-            noise_data_int = np.frombuffer(noise_data, np.int16)
-
-            noise_data_int = noise_data_int[:wavefile.getnframes()]
-            break
-        else:
-            print("Select the kind of noise to add (a or b): ")
-            print("a: Add pre-recorded noise to file")
-            print("b: Add noise with a specific frequency range")
-            print("please choose option 1 or 2")
+    noise_data_int = noise_data_int
 
     print("data len", len(data_int))
     print("noise_data_int len", len(noise_data_int))
@@ -614,15 +397,13 @@ def add_noise():
     output_data = data_int + noise_data_int
 
     output_data_byte = np.frombuffer(output_data, np.byte)
+    output_data.append(output_data_byte)
     noise_data_byte = np.frombuffer(noise_data_int, np.byte)
 
     # gets the frame rate
     f_rate = wavefile.getframerate()
 
     # Plot x-axis in seconds
-    # start number
-    # stop number (numberOfFrames / Framerate)
-    # num = number of steps
     time = np.linspace(
         0,
         len(data_int) / f_rate,
@@ -754,18 +535,14 @@ if __name__ == '__main__':
         elif mode == '3':
             print("3: Add noise to .wav File ")
             add_noise()
-
         elif mode == '4':
             print("4: Apply Noise Cancelling to .wav audio file")
             noise_reduction()
-            # while True:
-            #     print("a: use invert function")
-            #     print("b: use FFT function")
-            #     print("c: use noisereduce function")
         elif mode == '5':
             print("5: Live Active Noise Cancellation")
             live_anc()
-            # live_anc()
+        elif mode == '6':
+            fft_filter()
         elif mode == '0':
             print("0: Exiting program")
             print('#' * 80)
