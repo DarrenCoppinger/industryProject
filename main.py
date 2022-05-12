@@ -18,6 +18,7 @@ FORMAT = pyaudio.paInt16
 # Create pyaudio object
 p = pyaudio.PyAudio()
 
+
 def inverter(data):
     """
     this function generates the inverse of the provided wave stream chunk
@@ -156,13 +157,6 @@ def fft_filter():
     t_f = np.arange(0, 1, dt_f)
 
     print("Enter two frequency for the wave would you like to create: ")
-    # while True:
-    #     input_freq = input("Frequency: ")
-    #     f = np.sin(2 * np.pi * np.int(input_freq) * t_f)
-    #     print("Do you wanted to add another frequency to this wave?")
-    #     input_freq = input("If no enter -1:")
-    #     if(input_freq == -1):
-    #         break
     while True:
         try:
             input_freq_1 = int(input("Frequency 1: "))
@@ -172,7 +166,6 @@ def fft_filter():
             print("please enter a valid number")
 
     f = np.sin(2 * np.pi * input_freq_1 * t_f) + np.sin(2*np.pi*input_freq_2*t_f)
-    # f = np.sin(2*np.pi*30*t_f) + np.sin(2*np.pi*140*t_f)
     f_clean = f
     f = f + 2.5*np.random.randn(len(t_f))
 
@@ -227,11 +220,6 @@ def fft_filter():
     plt.legend()
 
     plt.show()
-
-    # Terminate PyAudio object
-    # p.terminate()
-    # Exit programme
-    # sys.exit()
 
 
 # from https://stackoverflow.com/questions/33933842/how-to-generate-noise-in-frequency-range-with-numpy
@@ -297,21 +285,26 @@ def record():
 
     stream.stop_stream()
     stream.close()
-    p.terminate()
 
 
 def read_file(name):
+    """
+    read in an existing file
+    :param name: the name of the file to be read
+    :return: wf (waveform data), stream (stream data), dt (time delta), w_len (file length in seconds)
+    """
     print("filename= ", name)
     # name = input("Enter WAV file name: ")
-    try:
-        wf = wave.open(name, 'r')
-        # wf = wave.open('darren.wav', 'r')
-    except wave.Error:
-        print("You must input a WAV audio file")
-        sys.exit()
-    except FileNotFoundError:
-        print("The file name you have entered does not exist")
-        sys.exit()
+    while True:
+        try:
+            wf = wave.open(name, 'r')
+            break
+        except wave.Error:
+            print("You must input a WAV audio file")
+            name = input("Enter the name of the audio .wav file: ")
+        except FileNotFoundError:
+            print("The file name you have entered does not exist")
+            name = input("Enter the name of the audio .wav file: ")
 
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                     channels=wf.getnchannels(),
@@ -363,24 +356,18 @@ def plot_data(array1, array2, array3, length):
 
 def add_noise():
     noisy_frames = []
-    output_data = []
+    output_data_frames = []
     # read in audio file
-    # orig_audio_name = input("Enter the name of the original audio .wav file: ")
-    orig_audio_name = "bush_fish.wav"
+    orig_audio_name = input("Enter the name of the original audio .wav file: ")
+    # orig_audio_name = "bush_fish.wav"
     (wavefile, stream, dt, w_len) = read_file(orig_audio_name)
 
     data = wavefile.readframes(-1)
     data_int = np.frombuffer(data, np.int16)
 
-    data_int = data_int
-
-    print("Add pre-recorded noise to file")
-    choice_noise = input("Enter mode number: ")
-
     # read in noise file
-    # noise_name = input("Enter the name of the noise audio .wav file: ")
-    noise_name = "cafe_mult.wav"
-    # noise_name = "ambience-cafe.wav"
+    noise_name = input("Enter the name of the noise audio .wav file: ")
+    # noise_name = "cafe_mult.wav"
     (noise_wavefile, noise_stream, noise_dt, noise_w_len) = read_file(noise_name)
 
     noise_data = noise_wavefile.readframes(-1)
@@ -397,8 +384,7 @@ def add_noise():
     output_data = data_int + noise_data_int
 
     output_data_byte = np.frombuffer(output_data, np.byte)
-    output_data.append(output_data_byte)
-    noise_data_byte = np.frombuffer(noise_data_int, np.byte)
+    output_data_frames.append(output_data_byte)
 
     # gets the frame rate
     f_rate = wavefile.getframerate()
@@ -414,7 +400,7 @@ def add_noise():
     plt.figure(1)
 
     # title of the plot
-    plt.title("Sound Wave Compare")
+    plt.title("Input and Noise Signal Comparison")
 
     # label of x-axis
     plt.xlabel("Time")
@@ -422,12 +408,30 @@ def add_noise():
     # label of y-axis
     plt.ylabel("Amplitude")
 
-    plt.plot(time, noise_data_int, color='red', label='noisy')
+    plt.plot(time, noise_data_int, color='red', label='noise data')
     # plt.plot(noise_data_int, color='red', label='noisy')
 
     # original input plotting
-    plt.plot(time, data_int, color='blue', label='input')
+    plt.plot(time, data_int, color='blue', label='input data')
     # plt.plot(data_int, color='blue', label='input')
+
+    # include plot legend
+    plt.legend()
+
+    # shows the plot
+    plt.show()
+
+    # title of the plot
+    plt.title("Combine input and noise signals")
+
+    # label of x-axis
+    plt.xlabel("Time")
+
+    # label of y-axis
+    plt.ylabel("Amplitude")
+
+    # Output data plotting
+    plt.plot(time, output_data, color='blue', label='input data')
 
     # include plot legend
     plt.legend()
@@ -439,18 +443,7 @@ def add_noise():
     if output_filename[-4:] != ".wav":
         output_filename = output_filename + ".wav"
 
-    print("output_data length = ", len(output_data))
-    print("output_data_byte length = ", len(output_data_byte))
-    print("original w_len = ", w_len)
-    print("fish frame rate = ", wavefile.getframerate())
-    print("RATE = ", RATE)
-    wf = wave.open(output_filename, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(output_data_byte)
-
-    wf.close()
+    output_file(output_filename, output_data_frames)
 
 
 def mult():
@@ -488,10 +481,64 @@ def mult():
 
 
 def noise_reduction():
+    filename = input("Enter file name to perform noise cancelling on:")
+    # wavefile = wave.open("bush_fish.wav", 'r')
+    wavefile = wave.open(filename, 'r')
+
+    data = wavefile.readframes(-1)
+    data_int = np.frombuffer(data, np.int16)
+
+    # Plot x-axis in seconds
+    time = np.linspace(
+        0,
+        len(data_int) / wavefile.getframerate(),
+        num=len(data_int)
+    )
+
     # load data
     rate, data = wavfile.read("finaltest.wav")
+    # title of the plot
+    plt.title("Noisy v Filtered Signal")
+
+    # label of x-axis
+    plt.xlabel("Time")
+
+    # label of y-axis
+    plt.ylabel("Amplitude")
+    plt.plot(time, data, color="red", label="noisy signal")
+
     # perform noise reduction
     reduced_noise = nr.reduce_noise(y=data, sr=rate)
+
+    plt.plot(time, reduced_noise, color="blue", label="filtered signal")
+
+    # include plot legend
+    plt.legend()
+
+    plt.show()
+
+    # title of the plot
+    plt.title("Original v Filtered Signal")
+
+    # label of x-axis
+    plt.xlabel("Time")
+
+    # label of y-axis
+    plt.ylabel("Amplitude")
+
+    plt.plot(time, data_int, color='red', label='original signal')
+    # plt.plot(noise_data_int, color='red', label='noisy')
+
+    # original input plotting
+    plt.plot(time, reduced_noise, color='blue', label='filtered signal')
+    # plt.plot(data_int, color='blue', label='input')
+
+    # include plot legend
+    plt.legend()
+
+    # shows the plot
+    plt.show()
+
     wavfile.write("reduced_noise.wav", rate, reduced_noise)
 
 
@@ -521,6 +568,7 @@ if __name__ == '__main__':
         print("3: Add noise to .wav File ")
         print("4: Apply Noise Cancelling to .wav audio file")
         print("5: Live Active Noise Cancellation")
+        print("6: FFT Demonstration")
         print("0: Exit Program")
         print('#' * 80)
         mode = input("Enter mode number: ")
@@ -542,6 +590,7 @@ if __name__ == '__main__':
             print("5: Live Active Noise Cancellation")
             live_anc()
         elif mode == '6':
+            print("6: FFT Demonstration")
             fft_filter()
         elif mode == '0':
             print("0: Exiting program")
